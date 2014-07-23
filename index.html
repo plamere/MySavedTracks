@@ -1,0 +1,188 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title> My Saved Tracks Items </title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link type="text/css" href="styles.css" rel="stylesheet" />
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+    <script src="lib/underscore-min.js"></script>
+    <link href="dist/sp-bootstrap.min.css" rel="stylesheet" media="screen">
+</head>
+
+<body>
+
+    <div class="navbar navbar-default navbar-fixed-top" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="index.html"><span>My&nbsp;Saved&nbsp;Tracks</span></a>
+        </div>
+        <div class="collapse navbar-collapse">
+          <ul id="options" class="nav navbar-nav navbar-right">
+              <li><a class="option" 
+                href="http://musicmachinery.com/2014/06/26/fetching-my-saved-tracks-from-spotify/" 
+                id='show-about'>About</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="search" class="hero-unit">
+       <div class="container">
+          <div id="intro">
+            <h1> My Saved Tracks</h1>
+            <p class="lead">This app demonstrates how to get the saved tracks for a user</p>
+            <div id="search-form" class="form-inline">
+                <span class="xform-control">
+                    <button class="btn btn-info btn-large" id='go' type="button">Show My Saved Tracks</button>
+                </span>
+            </div>
+            <div id="info"> </div>
+           </div>
+        </div>
+    </div>
+
+
+    <div id="main" class="container">
+        <h1> Saved Tracks for <span id="who"> </span></h1>
+        <hr>
+        <div id="item-list"> </div>
+    </div>
+
+    <div id="footer">
+      <hr>
+      <div class="container">
+      <small>
+        <p class="muted credit">Created by <a href="http://twitter.com/plamere">@plamere</a>. 
+        Powered by <a href="http://spotify.com">Spotify</a>. Source on <a
+        href="https://github.com/plamere/MySavedTracks">github</a>.
+        </p>
+      </small>
+      </div>
+    </div>
+
+</div>
+
+<script>
+"use strict";
+
+var accessToken = null;
+
+function error(msg) {
+    info(msg);
+}
+
+function info(msg) {
+    $("#info").text(msg);
+}
+
+function authorizeUser() {
+    var client_id = 'fe46ef0a9b384db28ceafb9f16343ece';
+    var redirect_uri = 'http://static.echonest.com/MySavedTracks/index.html';
+    var redirect_uri = 'http://localhost:8000';
+
+    var url = 'https://accounts.spotify.com/authorize?client_id=' + client_id +
+        '&response_type=token' +
+        '&scope=user-library-read' +
+        '&redirect_uri=' + encodeURIComponent(redirect_uri);
+    document.location = url;
+}
+
+function parseArgs() {
+    var hash = location.hash.replace(/#/g, '');
+    var all = hash.split('&');
+    var args = {};
+    _.each(all, function(keyvalue) {
+        var kv = keyvalue.split('=');
+        var key = kv[0];
+        var val = kv[1];
+        args[key] = val;
+    });
+    return args;
+}
+
+function fetchCurrentUserProfile(callback) {
+    var url = 'https://api.spotify.com/v1/me';
+    callSpotify(url, null, callback);
+}
+
+function fetchSavedTracks(callback) {
+    var url = 'https://api.spotify.com/v1/me/tracks';
+    callSpotify(url, {}, callback);
+}
+
+function callSpotify(url, data, callback) {
+    $.ajax(url, {
+        dataType: 'json',
+        data: data,
+        headers: {
+            'Authorization': 'Bearer ' + accessToken
+        },
+        success: function(r) {
+            callback(r);
+        },
+        error: function(r) {
+            callback(null);
+        }
+    });
+}
+
+function showTracks(tracks) {
+    var list = $("#item-list");
+
+    console.log('show tracks', tracks);
+    if (tracks.offset == 0) {
+        $("#main").show();
+        $("#intro").hide();
+        $("#item-list").empty();
+        info("");
+    }
+    _.each(tracks.items, function(item) {
+        var artistName = item.track.artists[0].name;
+        var itemElement = $("<div>").text(item.track.name + ' - ' + artistName);
+        list.append(itemElement);
+    });
+
+    if (tracks.next) {
+        callSpotify(tracks.next, {}, function(tracks) {
+            showTracks(tracks);
+        });
+    }
+}
+
+$(document).ready(
+    function() {
+        var args = parseArgs();
+
+        if ('access_token' in args) {
+            accessToken = args['access_token'];
+            $("#go").hide();
+            info('Getting your user profile');
+            fetchCurrentUserProfile(function(user) {
+                if (user) {
+                    $("#who").text(user.id);
+                    info('Getting your saved tracks');
+                    fetchSavedTracks(function(data) {
+                        if (data) {
+                            showTracks(data.tracks);
+                        } else {
+                            error("Trouble getting your saved tracks");
+                        }
+                    });
+                } else {
+                    error("Trouble getting the user profile");
+                }
+            });
+        } else {
+            $("#go").show();
+            $("#go").on('click', function() {
+                authorizeUser();
+            });
+        }
+    }
+);
+
+</script>
+<script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+</body>
+</html>
